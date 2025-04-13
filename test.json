@@ -1,0 +1,48 @@
+{
+    "blocks": [
+        {
+            "name": "Out",
+            "properties": {
+                "variable": "output"
+            },
+            "type": 24,
+            "x": 1100,
+            "y": 795
+        },
+        {
+            "name": "Saturation",
+            "properties": {
+                "lowerLimit": -1,
+                "upperLimit": 1
+            },
+            "type": 11,
+            "x": 877,
+            "y": 768
+        },
+        {
+            "name": "Ramp",
+            "properties": {
+                "initialOutput": 0,
+                "slope": 1,
+                "startTime": 0
+            },
+            "type": 20,
+            "x": 686,
+            "y": 746
+        }
+    ],
+    "connections": [
+        {
+            "destBlockName": "Saturation",
+            "destPortIndex": 0,
+            "sourceBlockName": "Ramp",
+            "sourcePortIndex": 0
+        },
+        {
+            "destBlockName": "Out",
+            "destPortIndex": 0,
+            "sourceBlockName": "Saturation",
+            "sourcePortIndex": 0
+        }
+    ]
+}
