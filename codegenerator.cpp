@@ -21,7 +21,7 @@ QString CppCodeGenerator::generateCode() {
     stream << "#include <map>\n\n";
 
     // 네임스페이스 시작
-    stream << "namespace SimulinkClone {\n\n";
+    stream << "namespace Similarlink {\n\n";
 
     // 기본 함수 타입 정의
     stream << "// 기본 함수 타입 정의\n";
@@ -37,12 +37,12 @@ QString CppCodeGenerator::generateCode() {
     generateSimulationInstance(stream);
 
     // 네임스페이스 종료
-    stream << "} // namespace SimulinkClone\n\n";
+    stream << "} // namespace Similarlink\n\n";
 
     // 메인 함수
     stream << "int main() {\n";
     stream << "    // 시뮬레이션 실행\n";
-    stream << "    SimulinkClone::runSimulation();\n";
+    stream << "    Similarlink::runSimulation();\n";
     stream << "    return 0;\n";
     stream << "}\n";
 

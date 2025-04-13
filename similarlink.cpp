@@ -706,7 +706,7 @@ void Similarlink::onGenerateCaplCode() {
 void Similarlink::closeEvent(QCloseEvent* event) {
     if (maybeSave()) {
         // 윈도우 및 도크 위젯 상태 저장
-        QSettings settings("YourCompany", "SimulinkClone");
+        QSettings settings("YourCompany", "Similarlink");
         settings.setValue("geometry", saveGeometry());
         settings.setValue("windowState", saveState());
         QMainWindow::closeEvent(event);
@@ -717,7 +717,7 @@ void Similarlink::closeEvent(QCloseEvent* event) {
 
 void Similarlink::readSettings() {
     // 윈도우 및 도크 위젯 상태 복원
-    QSettings settings("YourCompany", "SimulinkClone");
+    QSettings settings("YourCompany", "Similarlink");
     restoreGeometry(settings.value("geometry").toByteArray());
     restoreState(settings.value("windowState").toByteArray());
 }
@@ -1061,7 +1061,7 @@ void Similarlink::setModified(bool modified) {
 
 // 창 제목 업데이트
 void Similarlink::updateWindowTitle() {
-    QString title = "Qt Simulink Clone";
+    QString title = "Similarlink";
 
     if (m_currentFilePath.isEmpty()) {
         title = "Untitled - " + title;
@@ -1088,7 +1088,7 @@ bool Similarlink::maybeSave() {
         return true;
 
     QMessageBox::StandardButton ret = QMessageBox::warning(
-        this, "Qt Simulink Clone",
+        this, "Similarlink",
         "The document has been modified.\nDo you want to save your changes?",
         QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
 
