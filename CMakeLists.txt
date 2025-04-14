@@ -53,6 +53,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         blockdialog.h
         blockdialog.cpp
         simulation.h
+        subsystemblock.h subsystemblock.cpp
+        subsystemdialog.h subsystemdialog.cpp
+        subsystemtab.h subsystemtab.cpp
+
 
 
 

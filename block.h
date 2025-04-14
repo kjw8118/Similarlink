@@ -8,8 +8,8 @@
 #include <QGraphicsLineItem>
 
 
-class Block : public QGraphicsItem {
-    //Q_OBJECT
+class Block : public QObject, public QGraphicsItem {
+    Q_OBJECT
 public:
     enum BlockType {
         SOURCE,
@@ -37,6 +37,7 @@ public:
         SINE_WAVE,  // 추가: Sine Wave 블록
         IN,     // 추가: 입력 블록
         OUT,    // 추가: 출력 블록
+        SUBSYSTEM, // 추가: 서브시스템 블록
         CUSTOM,
         INVALID
     };

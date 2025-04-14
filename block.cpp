@@ -7,7 +7,7 @@
 #include <iostream>
 
 Block::Block(BlockType type, const QString& name, QGraphicsItem* parent)
-    : QGraphicsItem(parent), m_type(type), m_name(name), m_width(100), m_height(60) {
+    : QObject(), QGraphicsItem(parent), m_type(type), m_name(name), m_width(100), m_height(60) {
     setFlag(QGraphicsItem::ItemIsMovable);
     setFlag(QGraphicsItem::ItemIsSelectable);
     setFlag(QGraphicsItem::ItemSendsGeometryChanges);  // 이 플래그가 있는지 확인

@@ -1,6 +1,6 @@
 #include "blockfactory.h"
 #include "block.h"
-
+#include "subsystemblock.h"
 #include <QSet>
 
 #include <iostream>
@@ -52,12 +52,12 @@ void BlockInfo::registerCodeGenerator(const QString& language, CodeGeneratorFunc
 
     m_codeGenerators[language] = func;
 
-    std::cout << "func reg " << m_name.toStdString() << ", " << language.toStdString() << (bool)m_codeGenerators.contains(language) << ", " << (bool)m_codeGenerators[language] << std::endl;
+    //std::cout << "func reg " << m_name.toStdString() << ", " << language.toStdString() << (bool)m_codeGenerators.contains(language) << ", " << (bool)m_codeGenerators[language] << std::endl;
 }
 
 // 코드 생성
 QString BlockInfo::generateCode(const QString& language, const Block* block) const {
-    std::cout << language.toStdString() << ", " << block->getType() << ", " << block->getName().toStdString() << ", " << m_codeGenerators.size() << ", " << (bool)m_codeGenerators.contains(language) << ", " << (bool)m_codeGenerators[language] << std::endl;
+    //std::cout << language.toStdString() << ", " << block->getType() << ", " << block->getName().toStdString() << ", " << m_codeGenerators.size() << ", " << (bool)m_codeGenerators.contains(language) << ", " << (bool)m_codeGenerators[language] << std::endl;
     if (m_codeGenerators.contains(language) && m_codeGenerators[language]) {
         return m_codeGenerators[language](block, block->getProperties());
     }
@@ -82,7 +82,7 @@ BlockFactory::BlockFactory(QObject* parent)
 
 // 블록 정보 등록
 void BlockFactory::registerBlockType(const BlockInfo& blockInfo) {
-    std::cout << "registered " << blockInfo.type() << ", " << blockInfo.name().toStdString() << std::endl;
+    //std::cout << "registered " << blockInfo.type() << ", " << blockInfo.name().toStdString() << std::endl;
     m_blockInfoMap[blockInfo.type()] = blockInfo;
     m_nameToTypeMap[blockInfo.name()] = blockInfo.type();
 }
@@ -309,7 +309,7 @@ void BlockFactory::registerDefaultBlockTypes() {
         }
         ));
 
-    std::cout << Block::SATURATION << " -> reg saturation" << std::endl;
+    //std::cout << Block::SATURATION << " -> reg saturation" << std::endl;
     // RateLimiter 블록
     registerBlockType(BlockInfo(
         Block::RATE_LIMITER,
@@ -1203,4 +1203,74 @@ void BlockFactory::registerDefaultBlockTypes() {
                                                                return QString("// SineWaveBlock\n  return %1 * sin(2 * PI * %2 * currentTime + %3) + %4;").arg(amplitude).arg(frequency).arg(phase).arg(bias);
                                                            }
                                                            );
+
+
+
+
+    // Subsystem 블록
+    registerBlockType(BlockInfo(
+        Block::SUBSYSTEM,
+        "Subsystem",
+        "Ports & Subsystems",
+        "Contains a nested subsystem model",
+        [](const QString& name, QGraphicsItem* parent) -> Block* {
+            return new SubsystemBlock(name, parent);
+        }
+        ));
+
+    // ... 기존 코드 ...
+
+    // C++ 코드 생성기 등록
+    m_blockInfoMap[Block::SUBSYSTEM].registerCodeGenerator("cpp",
+                                                           [](const Block* block, const QMap<QString, QVariant>& props) -> QString {
+                                                               // 서브시스템 코드 생성
+                                                               const SubsystemBlock* subsystem = static_cast<const SubsystemBlock*>(block);
+
+                                                               // 서브시스템 내부의 입력/출력 포트 정보 가져오기
+                                                               QList<QPair<QString, int>> inputPorts = subsystem->getInputPortInfos();
+                                                               QList<QPair<QString, int>> outputPorts = subsystem->getOutputPortInfos();
+
+                                                               QString code = QString(
+                                                                                  "[this](const std::vector<double>& inputs) {\n"
+                                                                                  "    // 서브시스템: %1\n"
+                                                                                  "    std::vector<double> subsystemOutputs = processSubsystem_%2(inputs);\n"
+                                                                                  "    return subsystemOutputs.empty() ? 0.0 : subsystemOutputs[0];\n"
+                                                                                  "}"
+                                                                                  ).arg(block->getName()).arg(block->getName().replace(" ", "_"));
+
+                                                               return code;
+                                                           }
+                                                           );
+
+    // Python 코드 생성기 등록
+    m_blockInfoMap[Block::SUBSYSTEM].registerCodeGenerator("python",
+                                                           [](const Block* block, const QMap<QString, QVariant>& props) -> QString {
+                                                               // 서브시스템 코드 생성
+                                                               const SubsystemBlock* subsystem = static_cast<const SubsystemBlock*>(block);
+
+                                                               QString code = QString(
+                                                                                  "lambda inputs: self._process_subsystem_%1(inputs)"
+                                                                                  ).arg(block->getName().replace(" ", "_").replace("-", "_"));
+
+                                                               return code;
+                                                           }
+                                                           );
+
+    // CAPL 코드 생성기 등록
+    m_blockInfoMap[Block::SUBSYSTEM].registerCodeGenerator("capl",
+                                                           [](const Block* block, const QMap<QString, QVariant>& props) -> QString {
+                                                               // 서브시스템 코드 생성
+                                                               const SubsystemBlock* subsystem = static_cast<const SubsystemBlock*>(block);
+
+                                                               QString code = QString(
+                                                                                  "// SubsystemBlock: %1\n"
+                                                                                  "  return processSubsystem_%2(inputs, inputCount);"
+                                                                                  ).arg(block->getName()).arg(block->getName().replace(" ", "_"));
+
+                                                               return code;
+                                                           }
+                                                           );
+
+
+
 }

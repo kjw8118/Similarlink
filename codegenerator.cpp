@@ -30,6 +30,18 @@ QString CppCodeGenerator::generateCode() {
     // 블록 클래스 정의
     generateBlockClass(stream);
 
+    // 서브시스템 블록 수집
+    QList<SubsystemBlock*> subsystems;
+    for (auto item : m_scene->items()) {
+        SubsystemBlock* subsystem = dynamic_cast<SubsystemBlock*>(item);
+        if (subsystem) {
+            subsystems.append(subsystem);
+        }
+    }
+
+    // 서브시스템 함수 생성
+    generateSubsystemFunctions(stream, subsystems);
+
     // 메인 시뮬레이션 클래스 정의
     generateSimulationClass(stream);
 
@@ -532,6 +544,174 @@ void CppCodeGenerator::collectBlocksAndConnections(QMap<Block*, int>& blockIndic
             int destIndex = blockIndices[destBlock];
             connections.append(qMakePair(sourceIndex, destIndex));
         }
+    }
+}
+
+
+// 서브시스템 함수 생성 메서드 추가
+void CppCodeGenerator::generateSubsystemFunctions(QTextStream& stream, const QList<SubsystemBlock*>& subsystems) {
+    // 서브시스템 없으면 종료
+    if (subsystems.isEmpty()) {
+        return;
+    }
+
+    stream << "\n// 서브시스템 함수 정의\n";
+
+    // 각 서브시스템에 대해 처리 함수 생성
+    for (const SubsystemBlock* subsystem : subsystems) {
+        QString functionName = QString("processSubsystem_%1").arg(
+            subsystem->getName().replace(" ", "_"));
+
+        stream << "std::vector<double> " << functionName << "(const std::vector<double>& inputs) {\n";
+
+        // 서브시스템 모델 가져오기
+        QJsonObject model;
+        if (subsystem->isExternalFile()) {
+            QString filePath = subsystem->getSubsystemPath();
+            QFile file(filePath);
+            if (file.open(QIODevice::ReadOnly)) {
+                QByteArray data = file.readAll();
+                QJsonDocument doc = QJsonDocument::fromJson(data);
+                if (!doc.isNull() && doc.isObject()) {
+                    model = doc.object();
+                }
+                file.close();
+            }
+        } else {
+            model = subsystem->getEmbeddedModel();
+        }
+
+        // 서브시스템 블록 목록 및 연결 정보 파싱
+        QJsonArray blocksArray = model["blocks"].toArray();
+        QJsonArray connectionsArray = model["connections"].toArray();
+
+        // 블록 변수 선언
+        stream << "    // 블록 출력 변수\n";
+        stream << "    std::map<int, double> outputs;\n\n";
+
+        // 입력 블록에 값 할당
+        stream << "    // 입력 블록에 값 할당\n";
+        QList<QPair<QString, int>> inputPorts = subsystem->getInputPortInfos();
+        for (int i = 0; i < inputPorts.size(); i++) {
+            stream << "    // 입력 포트: " << inputPorts[i].first << "\n";
+            stream << "    if (inputs.size() > " << i << ") {\n";
+
+            // 해당 입력 포트명을 가진 In 블록 찾기
+            for (int j = 0; j < blocksArray.size(); j++) {
+                QJsonObject blockObj = blocksArray[j].toObject();
+                int type = blockObj["type"].toInt();
+                if (type == Block::IN) {
+                    QString blockName = blockObj["name"].toString();
+                    QJsonObject propsObj = blockObj["properties"].toObject();
+                    QString varName = propsObj["variable"].toString();
+
+                    if (varName == inputPorts[i].first) {
+                        stream << "        outputs[" << j << "] = inputs[" << i << "]; // " << blockName << "\n";
+                    }
+                }
+            }
+
+            stream << "    }\n";
+        }
+
+        stream << "\n    // 블록 실행\n";
+        stream << "    bool progress = true;\n";
+        stream << "    while (progress) {\n";
+        stream << "        progress = false;\n\n";
+
+        // 블록 실행 로직
+        stream << "        // 각 블록 처리\n";
+        stream << "        for (int i = 0; i < " << blocksArray.size() << "; i++) {\n";
+        stream << "            // 이미 처리된 블록은 건너뜀\n";
+        stream << "            if (outputs.find(i) != outputs.end()) continue;\n\n";
+
+        stream << "            std::vector<double> blockInputs;\n";
+        stream << "            bool allInputsReady = true;\n\n";
+
+        // 입력 수집 로직
+        stream << "            // 현재 블록의 입력 수집\n";
+        stream << "            for (const auto& conn : subsystemConnections) {\n";
+        stream << "                if (conn.second == i) {\n";
+        stream << "                    if (outputs.find(conn.first) == outputs.end()) {\n";
+        stream << "                        allInputsReady = false;\n";
+        stream << "                        break;\n";
+        stream << "                    }\n";
+        stream << "                    blockInputs.push_back(outputs[conn.first]);\n";
+        stream << "                }\n";
+        stream << "            }\n\n";
+
+        // 블록 실행 코드
+        stream << "            // 입력이 모두 준비되면 블록 실행\n";
+        stream << "            if (allInputsReady) {\n";
+        stream << "                // 블록 타입에 따른 처리\n";
+        stream << "                switch (blockTypes[i]) {\n";
+
+        // 각 블록 타입별 케이스 생성
+        for (int j = 0; j < blocksArray.size(); j++) {
+            QJsonObject blockObj = blocksArray[j].toObject();
+            int type = blockObj["type"].toInt();
+            QString name = blockObj["name"].toString();
+
+            stream << "                    case " << j << ": { // " << name << "\n";
+
+            // 블록 타입에 따른 처리 로직
+            // 이 부분은 실제 구현에서 각 블록 타입에 맞게 코드 생성
+            if (type == Block::SOURCE) {
+                QJsonObject propsObj = blockObj["properties"].toObject();
+                double value = propsObj["value"].toDouble();
+                stream << "                        outputs[i] = " << value << ";\n";
+            } else if (type == Block::IN) {
+                // In 블록은 이미 처리됨
+                stream << "                        // 이미 처리됨\n";
+            } else if (type == Block::OUT) {
+                stream << "                        outputs[i] = blockInputs.empty() ? 0.0 : blockInputs[0];\n";
+            } else {
+                // 기타 블록 타입
+                stream << "                        // 해당 블록 타입 처리 로직\n";
+                stream << "                        if (!blockInputs.empty()) outputs[i] = blockInputs[0];\n";
+            }
+
+            stream << "                        progress = true;\n";
+            stream << "                        break;\n";
+            stream << "                    }\n";
+        }
+
+        stream << "                }\n";
+        stream << "            }\n";
+        stream << "        }\n";
+        stream << "    }\n\n";
+
+        // 출력 반환
+        stream << "    // 출력 값 수집\n";
+        stream << "    std::vector<double> result;\n";
+
+        // Out 블록 찾기
+        QList<QPair<QString, int>> outputPorts = subsystem->getOutputPortInfos();
+        for (int i = 0; i < outputPorts.size(); i++) {
+            stream << "    // 출력 포트: " << outputPorts[i].first << "\n";
+
+            // 해당 출력 포트명을 가진 Out 블록 찾기
+            for (int j = 0; j < blocksArray.size(); j++) {
+                QJsonObject blockObj = blocksArray[j].toObject();
+                int type = blockObj["type"].toInt();
+                if (type == Block::OUT) {
+                    QString blockName = blockObj["name"].toString();
+                    QJsonObject propsObj = blockObj["properties"].toObject();
+                    QString varName = propsObj["variable"].toString();
+
+                    if (varName == outputPorts[i].first) {
+                        stream << "    if (outputs.find(" << j << ") != outputs.end()) {\n";
+                        stream << "        result.push_back(outputs[" << j << "]); // " << blockName << "\n";
+                        stream << "    } else {\n";
+                        stream << "        result.push_back(0.0); // 기본값\n";
+                        stream << "    }\n";
+                    }
+                }
+            }
+        }
+
+        stream << "    return result;\n";
+        stream << "}\n\n";
     }
 }
 

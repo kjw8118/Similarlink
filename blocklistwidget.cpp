@@ -20,6 +20,10 @@ void BlockListWidget::setupBlockCategories() {
 
     // 블록 팩토리에서 모든 카테고리 가져오기
     QStringList categories = BlockFactory::instance()->getAllCategories();
+
+    // 카테고리 알파벳 오름차순 정렬
+    categories.sort();
+
     QMap<QString, QTreeWidgetItem*> categoryItems;
 
     // 카테고리별 트리 아이템 생성
@@ -30,10 +34,29 @@ void BlockListWidget::setupBlockCategories() {
         categoryItems[category] = categoryItem;
     }
 
+    // 각 카테고리별로 블록 정보 저장
+    QMap<QString, QList<BlockInfo>> blocksByCategory;
+
     // 각 블록 타입을 해당 카테고리에 추가
     for (const BlockInfo& blockInfo : BlockFactory::instance()->getAllBlockTypes()) {
         QString category = blockInfo.category();
         if (categoryItems.contains(category)) {
+            blocksByCategory[category].append(blockInfo);
+        }
+    }
+
+    // 각 카테고리 내 블록을 알파벳 순으로 정렬하여 추가
+    for (auto it = blocksByCategory.begin(); it != blocksByCategory.end(); ++it) {
+        QString category = it.key();
+        QList<BlockInfo>& blocks = it.value();
+
+        // 이름을 기준으로 블록 정렬
+        std::sort(blocks.begin(), blocks.end(), [](const BlockInfo& a, const BlockInfo& b) {
+            return a.name() < b.name();
+        });
+
+        // 정렬된 블록 추가
+        for (const BlockInfo& blockInfo : blocks) {
             QTreeWidgetItem* blockItem = new QTreeWidgetItem(categoryItems[category]);
             blockItem->setText(0, blockInfo.name());
             blockItem->setToolTip(0, blockInfo.description());

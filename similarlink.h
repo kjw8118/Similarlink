@@ -19,6 +19,7 @@
 #include <QClipboard>
 #include <QSettings>
 #include <QProgressBar>
+#include <QTabWidget>
 
 
 #include "blockdialog.h"
@@ -30,6 +31,9 @@
 
 #include "blockfactory.h"
 
+#include "subsystemtab.h"
+#include "subsystemblock.h"
+#include "subsystemdialog.h"
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class Similarlink;
@@ -92,6 +96,9 @@ private:
     // 파일 수정 상태 설정
     void setModified(bool modified);
 
+    // 서브시스템 내의 블록 속성 다이얼로그 생성 헬퍼
+    QDialog* createSubsystemBlockPropertyDialog(Block* block, SubsystemTab* parentTab);
+
 private:
     SimulationScene* m_scene;
     SimulationView* m_view;
@@ -121,6 +128,10 @@ private:
     QLabel* m_timeLabel;
     QProgressBar* m_progressBar;
     QLabel* m_statusLabel;
+
+    // 서브시스템 관련 UI 요소
+    QTabWidget* m_tabWidget;  // 메인 탭 위젯
+    QList<SubsystemTab*> m_subsystemTabs;  // 열린 서브시스템 탭 목록
 
 public slots:
     // 파일 관련 메서드 추가
@@ -159,5 +170,12 @@ private slots:
 
     // 씬 변경 감지
     void onSceneChanged();
+
+    // 서브시스템 관련 슬롯 함수들
+    void onEditSubsystem(SubsystemBlock* block);
+    void onCloseSubsystemTab(SubsystemTab* tab);
+    void onTabChanged(int index);
+    void onCreateNewSubsystem();
+    void onSubsystemContentsChanged();
 };
 #endif // SIMILARLINK_H

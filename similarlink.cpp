@@ -1,11 +1,15 @@
 #include "similarlink.h"
 //#include "./ui_similarlink.h"
 
+
+#include <iostream>
+
 Similarlink::Similarlink(QWidget *parent)
     : QMainWindow(parent),
     m_isModified(false),
     m_lastBlockPosition(0, 0),
-    m_hasLastPosition(false)
+    m_hasLastPosition(false),
+    m_newAction(nullptr)
     //, ui(new Ui::Similarlink)
 {
     //ui->setupUi(this);
@@ -13,21 +17,32 @@ Similarlink::Similarlink(QWidget *parent)
     setWindowTitle("Similarlink");
     resize(1200, 800);
 
-    setupUI();
+    std::cout << "Similarlink start" << std::endl;
+
+    setupUI();    
+    std::cout << "Similarlink setupUI" << std::endl;
 
     m_engine = new SimulationEngine(m_scene, this);
     connect(m_engine, &SimulationEngine::started, this, &Similarlink::onSimulationStarted);
     connect(m_engine, &SimulationEngine::stopped, this, &Similarlink::onSimulationStopped);
     connect(m_engine, &SimulationEngine::simulationStepped, this, &Similarlink::onSimulationStepped);
 
+    std::cout << "Similarlink engine start" << std::endl;
+
     // 저장된 설정 복원 (선택 사항)
     readSettings();
+
+    std::cout << "Similarlink read settings" << std::endl;
+
 
     // 창 제목 초기화
     m_currentFilePath = "";
     updateWindowTitle();
+
+    std::cout << "Similarlink title updated" << std::endl;
     // 씬 변경 감지
     connect(m_scene, &QGraphicsScene::changed, this, &Similarlink::onSceneChanged);
+    std::cout << "Similarlink initialized" << std::endl;
 }
 
 Similarlink::~Similarlink()
@@ -60,6 +75,8 @@ QDialog* Similarlink::createBlockPropertyDialog(Block* block, QWidget* parent) {
     case Block::STEP:
     case Block::SINE_WAVE:
         return new SignalGeneratorPropertyDialog(block, parent);
+    case Block::SUBSYSTEM:
+        return new SubsystemDialog(static_cast<SubsystemBlock*>(block), parent);
     default:
         return new BlockPropertyDialog(block, parent);
     }
@@ -103,90 +120,53 @@ void Similarlink::setupUI() {
     // Create central widget
     QWidget* centralWidget = new QWidget();
     setCentralWidget(centralWidget);
+    std::cout << "Create central widget" << std::endl;
 
-    // Create main layout
-    QHBoxLayout* mainLayout = new QHBoxLayout(centralWidget);
+    // 여기서 메인 레이아웃을 만들지만, 아직 m_view를 추가하지 않음
+    QVBoxLayout* newLayout = new QVBoxLayout(centralWidget);
+    newLayout->setContentsMargins(0, 0, 0, 0);
+    std::cout << "Create main layout" << std::endl;
 
-    // Create scene and view
+    // 씬 생성
     m_scene = new SimulationScene(this);
     m_scene->setSceneRect(QRectF(0, 0, 2000, 2000));
 
     connect(m_scene, &QGraphicsScene::selectionChanged, this, [this]() {
         m_deleteAction->setEnabled(!m_scene->selectedItems().isEmpty());
     });
+    std::cout << "Create scene and view" << std::endl;
 
+    // 뷰 생성 및 설정
     m_view = new SimulationView(m_scene);
     m_view->setRenderHint(QPainter::Antialiasing);
     m_view->setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
-    m_view->setDragMode(QGraphicsView::RubberBandDrag); // 기본은 선택 드래그 모드
+    m_view->setDragMode(QGraphicsView::RubberBandDrag);
 
-    // 씬의 마우스 이벤트를 필터링하여 드래그 모드 동적 변경
+    // 이벤트 필터 설정 및 연결
     m_view->viewport()->installEventFilter(this);
-
-    // Connect double click signal
     connect(m_view, &QGraphicsView::rubberBandChanged, this, [this](const QRect&, const QPointF&, const QPointF&) {
-        // This is a workaround for rubber band selection clearing current selection
         m_deleteAction->setEnabled(!m_scene->selectedItems().isEmpty());
     });
-
-    // Handle double click on items
     m_view->viewport()->installEventFilter(this);
-
-    // 키 이벤트를 받기 위해 뷰에 포커스 정책 설정
     m_view->setFocusPolicy(Qt::StrongFocus);
-
-    // 키 이벤트를 처리하기 위한 이벤트 필터 설치
     m_view->installEventFilter(this);
+    m_view->setAcceptDrops(true);
+    std::cout << "view connected" << std::endl;
 
-    // Create dock widget for blocks library
-    m_blocksDock  = new QDockWidget("Blocks Library", this);
-    m_blocksDock ->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    m_blocksDock->setObjectName("BlockLibraryDock"); // 상태 저장을 위한 고유 이름
+    // 블록 라이브러리 도크 위젯 생성
+    m_blocksDock = new QDockWidget("Blocks Library", this);
+    m_blocksDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_blocksDock->setObjectName("BlockLibraryDock");
 
     QWidget* dockWidget = new QWidget();
     QVBoxLayout* dockLayout = new QVBoxLayout(dockWidget);
 
-    // QListWidget 대신 커스텀 BlockListWidget 사용
+    // 블록 리스트 생성 및 설정
     m_blockList = new BlockListWidget();
-    /*m_blockList->addItem("Source");
-    m_blockList->addItem("Clock");        // 추가: Clock 블록
-    m_blockList->addItem("Ramp");         // 추가: Ramp 블록
-    m_blockList->addItem("Step");         // 추가: Step 블록
-    m_blockList->addItem("Sine Wave");    // 추가: Sine Wave 블록
 
-    m_blockList->addItem("Gain");
-    m_blockList->addItem("Sum");
-    m_blockList->addItem("Product");
-    m_blockList->addItem("Integrator");
-    m_blockList->addItem("Derivative");
-    m_blockList->addItem("Scope");
-    m_blockList->addItem("In");     // 추가: In 블록
-    m_blockList->addItem("Out");    // 추가: Out 블록
-    m_blockList->addItem("Lookup Table 1D");  // 추가: 1D Lookup Table
-    m_blockList->addItem("Lookup Table 2D");  // 추가: 2D Lookup Table
-    // 수학 연산 블록
-    m_blockList->addItem("Min");
-    m_blockList->addItem("Max");
-    m_blockList->addItem("Divide");
-
-    // 제한 블록
-    m_blockList->addItem("Saturation");
-    m_blockList->addItem("Rate Limiter");
-
-    // 로직 블록
-    m_blockList->addItem("Switch");
-    m_blockList->addItem("AND");
-    m_blockList->addItem("OR");
-    m_blockList->addItem("NOT");
-    m_blockList->addItem("XOR");*/
-
-    // 블록 리스트에서 블록 선택 시 신호 연결
     connect(m_blockList, &BlockListWidget::blockTypeSelected, this, [this](const QString& blockType) {
-        //QPointF center = m_view->mapToScene(m_view->viewport()->rect().center());
-        //createBlockAt(blockType, center);
-        // 대각선 위치 적용을 위해 onAddBlock 메서드 호출
         onAddBlock();
-        m_blockList->setCurrentItem(nullptr); // 추가: 현재 선택 항목 지우기
+        m_blockList->setCurrentItem(nullptr);
     });
 
     QPushButton* addButton = new QPushButton("Add Block");
@@ -197,35 +177,64 @@ void Similarlink::setupUI() {
     m_blocksDock->setWidget(dockWidget);
 
     addDockWidget(Qt::LeftDockWidgetArea, m_blocksDock);
+    std::cout << "addDockWidget" << std::endl;
 
-    // Add the view to the main layout
-    mainLayout->addWidget(m_view);
+    // 이 부분 제거: mainLayout->addWidget(m_view);
 
-    // Create menu and toolbar
+    // 메뉴와 툴바 설정
     setupMenus();
+    std::cout << "Create menus" << std::endl;
+
     setupToolbar();
+    std::cout << "Create toolbar" << std::endl;
 
-    // Status bar
-    setupStatusBar(); // 상태 표시줄 설정 추가
+    setupStatusBar();
     statusBar()->showMessage("Ready");
+    std::cout << "Create status bar" << std::endl;
 
+    // 탭 위젯 생성 및 설정
+    m_tabWidget = new QTabWidget();
+    m_tabWidget->setTabsClosable(true);
+    m_tabWidget->setMovable(true);
+    connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) {
+        if (index > 0) {
+            SubsystemTab* tab = qobject_cast<SubsystemTab*>(m_tabWidget->widget(index));
+            if (tab) {
+                onCloseSubsystemTab(tab);
+            }
+        }
+    });
+    connect(m_tabWidget, &QTabWidget::currentChanged, this, &Similarlink::onTabChanged);
+    std::cout << "Create tab widget" << std::endl;
 
-    // QGraphicsView에 드롭 활성화
-    m_view->setAcceptDrops(true);
+    // 메인 모델 탭 추가
+    QWidget* mainTab = new QWidget();
+    QVBoxLayout* mainTabLayout = new QVBoxLayout(mainTab);
+    mainTabLayout->setContentsMargins(0, 0, 0, 0);
+    mainTabLayout->addWidget(m_view);  // 여기에서만 m_view 추가
+    m_tabWidget->addTab(mainTab, "Main Model");
+    std::cout << "Create Main tab" << std::endl;
 
-    // 뷰 이벤트 핸들링을 위한 이벤트 필터 설치 (기존 코드에 추가)
-    m_view->viewport()->installEventFilter(this);
+    // 메인 레이아웃에 탭 위젯 추가
+    newLayout->addWidget(m_tabWidget);
 
-
-
-
+    // 이 부분이 중복 제거됨
+    // QLayout* oldLayout = centralWidget->layout();
+    // delete oldLayout;
+    // QVBoxLayout* newLayout = new QVBoxLayout(centralWidget);
+    // newLayout->setContentsMargins(0, 0, 0, 0);
+    // newLayout->addWidget(m_tabWidget);
+    // centralWidget->setLayout(newLayout);
 }
 
 void Similarlink::setupMenus() {
     // File menu
     QMenu* fileMenu = menuBar()->addMenu("&File");
 
-    QAction* newAction = fileMenu->addAction("&New");
+    //QAction* newAction = fileMenu->addAction("&New");
+    //connect(m_newAction, &QAction::triggered, this, &Similarlink::onNewModel);
+    // 수정된 코드
+    m_newAction = fileMenu->addAction("&New");
     connect(m_newAction, &QAction::triggered, this, &Similarlink::onNewModel);
 
 
@@ -295,6 +304,14 @@ void Similarlink::setupMenus() {
         toggleBlocksDockAction->setChecked(visible);
     });
 
+
+
+
+    // 서브시스템 메뉴 추가
+    QMenu* subsystemMenu = menuBar()->addMenu("&Subsystem");
+
+    QAction* newSubsystemAction = subsystemMenu->addAction("&New Subsystem");
+    connect(newSubsystemAction, &QAction::triggered, this, &Similarlink::onCreateNewSubsystem);
 }
 
 void Similarlink::setupToolbar() {
@@ -382,6 +399,23 @@ void Similarlink::setupToolbar() {
 }
 
 bool Similarlink::eventFilter(QObject* watched, QEvent* event) {
+    // 현재 활성화된 탭이 서브시스템 탭인 경우
+    int currentIndex = m_tabWidget->currentIndex();
+    if (currentIndex > 0) { // 0번 인덱스는 메인 모델
+        SubsystemTab* tab = qobject_cast<SubsystemTab*>(m_tabWidget->widget(currentIndex));
+        if (tab) {
+            // 서브시스템 탭의 뷰와 관련된 이벤트인 경우 해당 탭에 위임
+            SimulationView* tabView = tab->getView();
+            if (tabView && (watched == tabView || watched == tabView->viewport())) {
+                // 서브시스템 탭의 이벤트 필터에 처리를 위임
+                // 참고: SubsystemTab은 자체 이벤트 필터를 가지고 있으므로 여기서는
+                // 이벤트를 가로채지 않고 기본 처리로 전달합니다.
+                return QMainWindow::eventFilter(watched, event);
+            }
+        }
+    }
+
+    // 메인 모델에 대한 이벤트 처리 (기존 코드)
     if (watched == m_view->viewport()) {
         // 드래그 엔터 이벤트 - 드롭 가능 여부 결정
         if (event->type() == QEvent::DragEnter) {
@@ -413,8 +447,6 @@ bool Similarlink::eventFilter(QObject* watched, QEvent* event) {
                 return true;
             }
         }
-
-
         // 연결 모드 시작 시 드래그 모드 변경
         if (event->type() == QEvent::MouseButtonPress) {
             QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
@@ -725,6 +757,34 @@ void Similarlink::readSettings() {
 void Similarlink::onAddBlock() {
     QString blockType = m_blockList->selectedBlockType();
     if (!blockType.isEmpty()) {
+        // 현재 활성화된 탭이 서브시스템 탭인지 확인
+        int currentIndex = m_tabWidget->currentIndex();
+        if (currentIndex > 0) { // 0번 인덱스는 메인 모델
+            SubsystemTab* tab = qobject_cast<SubsystemTab*>(m_tabWidget->widget(currentIndex));
+            if (tab) {
+                // 서브시스템 탭에 블록 추가
+                QPointF center;
+
+                if (tab->hasLastPosition()) {
+                    // 탭의 마지막 위치 사용
+                    center = tab->getLastBlockPosition() + QPointF(20, 20);
+                } else {
+                    // 첫 블록이면 중앙에 배치
+                    SimulationView* view = tab->getView();
+                    if (view) {
+                        center = view->mapToScene(view->viewport()->rect().center());
+                    } else {
+                        // 뷰가 없는 경우 기본 위치 사용
+                        center = QPointF(100, 100);
+                    }
+                }
+
+                tab->createBlockAt(blockType, center);
+                return;
+            }
+        }
+
+        // 메인 모델에 블록 추가 (기존 코드)
         QPointF center;
 
         if (m_hasLastPosition) {
@@ -780,11 +840,29 @@ void Similarlink::onDeleteSelectedItems() {
 }
 
 void Similarlink::onBlockDoubleClicked(QGraphicsItem* item) {
+    // 현재 활성화된 탭이 서브시스템 탭인 경우
+    int currentIndex = m_tabWidget->currentIndex();
+    if (currentIndex > 0) { // 0번 인덱스는 메인 모델
+        SubsystemTab* tab = qobject_cast<SubsystemTab*>(m_tabWidget->widget(currentIndex));
+        if (tab) {
+            // 서브시스템 탭의 블록 더블클릭은 해당 탭이 직접 처리하도록 함
+            tab->onBlockDoubleClicked(item);
+            return;
+        }
+    }
+
+    // 메인 모델에서의 처리 (기존 코드)
     Block* block = dynamic_cast<Block*>(item);
     if (block) {
         if (block->getType() == Block::SCOPE) {
             ScopeBlock* scope = dynamic_cast<ScopeBlock*>(block);
             showScopeDialog(scope);
+        } else if (block->getType() == Block::SUBSYSTEM) {
+            // 서브시스템 블록인 경우 편집 열기
+            SubsystemBlock* subsystemBlock = dynamic_cast<SubsystemBlock*>(block);
+            if (subsystemBlock) {
+                onEditSubsystem(subsystemBlock);
+            }
         } else {
             // 블록 유형에 맞는 속성 다이얼로그 생성
             QDialog* dialog = createBlockPropertyDialog(block, this);
@@ -793,7 +871,6 @@ void Similarlink::onBlockDoubleClicked(QGraphicsItem* item) {
         }
     }
 }
-
 void Similarlink::onStartSimulation() {
     m_engine->start();
 }
@@ -1129,4 +1206,149 @@ QString Similarlink::generateUniqueBlockName(const QString& baseName) const {
     } while (isBlockNameExists(newName));
 
     return newName;
+}
+
+
+// 새 서브시스템 생성
+void Similarlink::onCreateNewSubsystem() {
+    // 서브시스템 블록 생성
+    SubsystemBlock* block = new SubsystemBlock("Subsystem");
+
+    // 블록 위치 설정 (대각선 배치 로직 활용)
+    QPointF pos;
+    if (m_hasLastPosition) {
+        pos = m_lastBlockPosition + QPointF(20, 20);
+    } else {
+        pos = m_view->mapToScene(m_view->viewport()->rect().center());
+    }
+
+    // 고유 이름 생성
+    QString uniqueName = generateUniqueBlockName(block->getName());
+    block->setName(uniqueName);
+
+    block->setPos(pos);
+    m_scene->addItem(block);
+    setModified(true);
+
+    // 위치 기록
+    m_lastBlockPosition = pos;
+    m_hasLastPosition = true;
+
+    // 서브시스템 속성 다이얼로그 표시
+    SubsystemDialog dialog(block, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        // 서브시스템 편집 모드 열기
+        onEditSubsystem(block);
+    }
+}
+
+// 서브시스템 편집 탭 설정 및 연결 (확장된 구현)
+void Similarlink::onEditSubsystem(SubsystemBlock* block) {
+    if (!block) return;
+
+    // 이미 해당 서브시스템 탭이 열려있는지 확인
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        SubsystemTab* tab = qobject_cast<SubsystemTab*>(m_tabWidget->widget(i));
+        if (tab && tab->getSubsystemBlock() == block) {
+            // 이미 열려있는 탭으로 이동
+            m_tabWidget->setCurrentIndex(i);
+            return;
+        }
+    }
+
+    // 새 서브시스템 탭 생성
+    SubsystemTab* tab = new SubsystemTab(block, this);
+
+    // 신호 연결
+    connect(tab, &SubsystemTab::closeRequested, this, &Similarlink::onCloseSubsystemTab);
+    connect(tab, &SubsystemTab::contentsChanged, this, &Similarlink::onSubsystemContentsChanged);
+
+    // 중첩 서브시스템 편집 요청 처리 연결 (추가)
+    connect(tab, &SubsystemTab::editNestedSubsystem, this, &Similarlink::onEditSubsystem);
+
+    // 탭에 추가
+    int index = m_tabWidget->addTab(tab, block->getName());
+    m_tabWidget->setCurrentIndex(index);
+    m_subsystemTabs.append(tab);
+
+    std::cout << "Now tab activate" << std::endl;
+    // 탭 활성화 (포커스 설정 등)
+    tab->activate();
+}
+
+// 서브시스템 내의 블록 속성 다이얼로그를 위한 헬퍼 메서드 추가
+QDialog* Similarlink::createSubsystemBlockPropertyDialog(Block* block, SubsystemTab* parentTab) {
+    // 일반적인 블록 속성 다이얼로그 생성과 동일
+    return createBlockPropertyDialog(block, parentTab);
+}
+
+// 서브시스템 탭 닫기
+void Similarlink::onCloseSubsystemTab(SubsystemTab* tab) {
+    if (!tab) return;
+
+    // 저장되지 않은 변경사항 확인
+    if (tab->hasUnsavedChanges()) {
+        QMessageBox::StandardButton result = QMessageBox::question(
+            this, "Save Changes",
+            "Do you want to save changes to this subsystem?",
+            QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
+
+        if (result == QMessageBox::Yes) {
+            if (!tab->saveModel()) {
+                // 저장 실패
+                QMessageBox::critical(this, "Error", "Failed to save the subsystem.");
+                return;
+            }
+        } else if (result == QMessageBox::Cancel) {
+            return;
+        }
+    }
+
+    // 탭 찾기 및 제거
+    int index = m_tabWidget->indexOf(tab);
+    if (index >= 0) {
+        m_tabWidget->removeTab(index);
+    }
+
+    // 목록에서 제거
+    m_subsystemTabs.removeOne(tab);
+
+    // 탭 삭제
+    delete tab;
+}
+
+// 탭 변경 처리
+void Similarlink::onTabChanged(int index) {
+    // 필요한 UI 업데이트 수행
+    if (index > 0) { // 0번 인덱스는 메인 모델
+        SubsystemTab* tab = qobject_cast<SubsystemTab*>(m_tabWidget->widget(index));
+        if (tab) {
+            // 서브시스템 탭 활성화
+            tab->activate();
+
+            // 삭제 버튼 상태 업데이트
+            m_deleteAction->setEnabled(!tab->getView()->scene()->selectedItems().isEmpty());
+        }
+    } else {
+        // 메인 모델 탭 활성화
+        m_deleteAction->setEnabled(!m_scene->selectedItems().isEmpty());
+    }
+}
+
+// 서브시스템 내용 변경 감지
+void Similarlink::onSubsystemContentsChanged() {
+    // 현재 탭의 제목에 변경 표시 추가
+    SubsystemTab* tab = qobject_cast<SubsystemTab*>(sender());
+    if (tab) {
+        int index = m_tabWidget->indexOf(tab);
+        if (index >= 0) {
+            QString title = tab->getTabName();
+            if (!title.startsWith("*")) {
+                m_tabWidget->setTabText(index, "*" + title);
+            }
+        }
+    }
+
+    // 메인 모델 수정 상태 업데이트
+    setModified(true);
 }

@@ -10,6 +10,8 @@
 
 #include "blockfactory.h"
 
+#include "subsystemblock.h"
+
 class CppCodeGenerator : public QObject {
 public:
     CppCodeGenerator(SimulationScene* scene, QObject* parent = nullptr);
@@ -24,6 +26,8 @@ private:
     void generateSimulationClass(QTextStream& stream);
 
     void generateSimulationInstance(QTextStream& stream);
+
+    void generateSubsystemFunctions(QTextStream& stream, const QList<SubsystemBlock*>& subsystems);
 
     // 블록과 연결 정보 수집
     void collectBlocksAndConnections(QMap<Block*, int>& blockIndices,
